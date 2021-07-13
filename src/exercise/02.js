@@ -3,14 +3,51 @@
 
 import * as React from 'react'
 
-function Greeting({initialName = ''}) {
-  // 🐨 initialize the state to the value from localStorage
-  // 💰 window.localStorage.getItem('name') || initialName
-  const [name, setName] = React.useState(initialName)
+function useLocalStorageState(
+  key,
+  defaultValue = '',
+  {serialize = JSON.stringify, deserialize = JSON.parse} = {},
+) {
+  // PROBLEM: It will fetch the getItem everything this component re-render and it is a performance bottleneck!!!
+  // const [name, setName] = React.useState(
+  //   window.localStorage.getItem('name') || initialName,
+  //   console.log('called'),
+  // )
 
-  // 🐨 Here's where you'll use `React.useEffect`.
-  // The callback should set the `name` in localStorage.
-  // 💰 window.localStorage.setItem('name', name)
+  // SOLUTION: useState allows you to pass a function instead of actual value.
+  const [state, setState] = React.useState(() => {
+    const valInLocalStorate = window.localStorage.getItem(key)
+    if (valInLocalStorate) {
+      return deserialize(valInLocalStorate)
+    }
+
+    return typeof defaultValue === 'function' ? defaultValue() : defaultValue
+  })
+
+  // If key is changed
+  const prevKeyRef = React.useRef(key)
+
+  // This will get called whenever this component rerender
+  // Only run this whenever the name state change!!
+  React.useEffect(() => {
+    const prevKey = prevKeyRef.current
+
+    // remove the old key and its data
+    if (prevKey !== key) {
+      window.localStorage.removeItem(prevKey)
+    }
+
+    //update the prevKeyRef with the new key
+    prevKeyRef.current = key
+
+    window.localStorage.setItem(key, serialize(state))
+  }, [key, serialize, state])
+
+  return [state, setState]
+}
+
+function Greeting({initialName = ''}) {
+  const [name, setName] = useLocalStorageState('name', initialName)
 
   function handleChange(event) {
     setName(event.target.value)
